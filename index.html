@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ethereum Address Validator</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
+    canvas {
+      position: fixed;
+      top: 0;
+      left: 0;
+      z-index: -1;
+    }
+    .container {
+      position: relative;
+      z-index: 10;
+    }
+    #validateBtn {
+      position: relative;
+      transition: all 0.3s ease;
+    }
+    #validateBtn:hover {
+      transform: scale(1.05);
+    }
+    #validateBtn.glow {
+      animation: glow 1.5s infinite alternate;
+    }
+    @keyframes glow {
+      0% {
+        box-shadow: 0 0 10px rgba(59, 130, 246, 0.8), 
+                    0 0 20px rgba(59, 130, 246, 0.6), 
+                    0 0 30px rgba(59, 130, 246, 0.4);
+      }
+      50% {
+        box-shadow: 0 0 15px rgba(147, 51, 234, 0.8), 
+                    0 0 25px rgba(147, 51, 234, 0.6), 
+                    0 0 35px rgba(147, 51, 234, 0.4);
+      }
+      100% {
+        box-shadow: 0 0 10px rgba(236, 72, 153, 0.8), 
+                    0 0 20px rgba(236, 72, 153, 0.6), 
+                    0 0 30px rgba(236, 72, 153, 0.4);
+      }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bgCanvas"></canvas>
+  <div class="container flex items-center justify-center min-h-screen">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md bg-opacity-90">
+      <h1 class="text-2xl font-bold mb-4 text-center">Ethereum Address Validator</h1>
+      <textarea
+        id="addressInput"
+        class="w-full h-32 p-2 border rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="Enter Ethereum addresses (one per line or comma-separated)"
+      ></textarea>
+      <button
+        id="validateBtn"
+        class="w-full bg-blue-500 text-white py-2 rounded-md hover:bg-blue-600 mb-4 glow"
+      >
+        Validate Addresses
+      </button>
+      <div id="results" class="space-y-2"></div>
+      <button
+        id="copyValidBtn"
+        class="w-full bg-green-500 text-white py-2 rounded-md hover:bg-green-600 mt-4 hidden"
+      >
+        Copy Valid Addresses
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // Canvas Background Animation
+    const canvas = document.getElementById('bgCanvas');
+    const ctx = canvas.getContext('2d');
+    let mouseX = 0;
+    let mouseY = 0;
+
+    // Set canvas size
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // Particle system
+    const particles = [];
+    const particleCount = 100;
+
+    class Particle {
+      constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.size = Math.random() * 5 + 2;
+        this.speedX = Math.random() * 2 - 1;
+        this.speedY = Math.random() * 2 - 1;
+        this.hue = Math.random() * 360;
+      }
+
+      update() {
+        // Move particles
+        this.x += this.speedX;
+        this.y += this.speedY;
+
+        // Bounce off edges
+        if (this.x < 0 || this.x > canvas.width) this.speedX *= -1;
+        if (this.y < 0 || this.y > canvas.height) this.speedY *= -1;
+
+        // Adjust particle position based on mouse proximity
+        const dx = mouseX - this.x;
+        const dy = mouseY - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance < 100) {
+          this.x += dx * 0.02;
+          this.y += dy * 0.02;
+          this.hue += 5;
+          if (this.hue > 360) this.hue = 0;
+        }
+
+        // Keep particles within bounds
+        this.x = Math.max(0, Math.min(this.x, canvas.width));
+        this.y = Math.max(0, Math.min(this.y, canvas.height));
+      }
+
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fillStyle = `hsl(${this.hue}, 70%, 50%)`;
+        ctx.fill();
+      }
+    }
+
+    // Initialize particles
+    for (let i = 0; i < particleCount; i++) {
+      particles.push(new Particle());
+    }
+
+    // Animation loop
+    function animate() {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      particles.forEach(particle => {
+        particle.update();
+        particle.draw();
+      });
+      requestAnimationFrame(animate);
+    }
+    animate();
+
+    // Track mouse movement
+    window.addEventListener('mousemove', (e) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    });
+
+    // Address Validator Logic
+    const addressInput = document.getElementById('addressInput');
+    const validateBtn = document.getElementById('validateBtn');
+    const resultsDiv = document.getElementById('results');
+    const copyValidBtn = document.getElementById('copyValidBtn');
+
+    function validateAddress(address) {
+      const trimmed = address.trim();
+      if (!trimmed.startsWith('0x')) {
+        return { valid: false, reason: 'Must start with 0x' };
+      }
+      if (trimmed.length !== 42) {
+        return { valid: false, reason: 'Must be 42 characters long' };
+      }
+      const hexPart = trimmed.slice(2);
+      const hexRegex = /^[0-9a-fA-F]{40}$/;
+      if (!hexRegex.test(hexPart)) {
+        return { valid: false, reason: 'Must contain only hexadecimal characters' };
+      }
+      return { valid: true };
+    }
+
+    function displayResults(addresses) {
+      resultsDiv.innerHTML = '';
+      const validAddresses = [];
+      addresses.forEach(address => {
+        const { valid, reason } = validateAddress(address);
+        const div = document.createElement('div');
+        div.className = `flex items-center space-x-2 ${valid ? 'text-green-600' : 'text-red-600'}`;
+        div.innerHTML = `
+          <span>${valid ? '✅ Valid' : '❌ Invalid'}</span>
+          <span>— ${address}</span>
+          ${valid ? '' : `<span>(${reason})</span>`}
+        `;
+        resultsDiv.appendChild(div);
+        if (valid) validAddresses.push(address);
+      });
+
+      if (validAddresses.length > 0) {
+        copyValidBtn.classList.remove('hidden');
+        copyValidBtn.onclick = () => {
+          navigator.clipboard.writeText(validAddresses.join('\n'));
+          alert('Valid addresses copied to clipboard!');
+        };
+      } else {
+        copyValidBtn.classList.add('hidden');
+      }
+    }
+
+    validateBtn.addEventListener('click', () => {
+      const input = addressInput.value;
+      const addresses = input
+        .split(/[\n,]+/)
+        .map(addr => addr.trim())
+        .filter(addr => addr.length > 0);
+      if (addresses.length === 0) {
+        resultsDiv.innerHTML = '<p class="text-red-600">Please enter at least one address.</p>';
+        copyValidBtn.classList.add('hidden');
+        return;
+      }
+      displayResults(addresses);
+    });
+  </script>
+</body>
+</html>
